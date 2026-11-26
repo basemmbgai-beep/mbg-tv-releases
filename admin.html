@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>MBG TV – لوحة التحكم</title>
+<style>
+:root{--bg:#0b1020;--card:#141b34;--line:#26305a;--acc:#2dd4bf;--txt:#e8ecff;--mut:#8f9bc7;--bad:#f87171;--ok:#34d399;--warn:#fbbf24}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.5 system-ui,"Segoe UI",Tahoma,sans-serif;padding:14px;max-width:560px;margin-inline:auto}
+h1{font-size:20px;margin:6px 0 14px}h2{font-size:15px;color:var(--mut);margin:18px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+input,select,button{font:inherit;color:var(--txt);background:#0e1530;border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+button{cursor:pointer;background:var(--acc);color:#04121a;font-weight:700;border:0}button.s{background:#233063;color:var(--txt);font-weight:600;width:auto;padding:6px 10px;font-size:13px}
+button.d{background:#4a1d28;color:#ffb4bd;width:auto;padding:6px 10px;font-size:13px}
+.row{display:flex;gap:8px;margin-top:8px}.row>*{flex:1}.cust{display:flex;flex-direction:column;gap:6px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;word-break:break-all}.em{direction:ltr;text-align:left;font-weight:600}
+.tag{font-size:12px;border-radius:8px;padding:2px 8px;white-space:nowrap}.ok{background:#0f3a2c;color:var(--ok)}.exp{background:#4a1d28;color:var(--bad)}.soon{background:#4a3a0f;color:var(--warn)}.perm{background:#1f2d63;color:#9db0ff}
+.btns{display:flex;gap:6px;flex-wrap:wrap}.note{color:var(--mut);font-size:13px}#msg{position:fixed;bottom:14px;inset-inline:14px;background:#1d2750;border:1px solid var(--line);padding:10px 14px;border-radius:12px;display:none;text-align:center}
+</style></head><body>
+<h1>🔐 MBG TV – لوحة التحكم</h1>
+<div class="card" id="tokBox">
+  <div class="note">مفتاح GitHub (مرة واحدة، يُحفظ على هذا الهاتف فقط)</div>
+  <input id="tok" type="password" dir="ltr" placeholder="github_pat_..." autocomplete="off">
+  <div class="row"><button id="saveTok">حفظ وتحميل</button><button class="s" id="forget" style="flex:0 0 auto">نسيان المفتاح</button></div>
+</div>
+<div id="app" style="display:none">
+<h2>إضافة عميل</h2>
+<div class="card">
+  <input id="em" type="email" dir="ltr" placeholder="client@email.com" autocomplete="off">
+  <div class="row"><select id="dur">
+    <option value="1">شهر</option><option value="3">3 أشهر</option><option value="6">6 أشهر</option><option value="12" selected>سنة</option><option value="24">سنتان</option><option value="0">دائم (بدون انتهاء)</option><option value="d">تاريخ محدد…</option></select>
+    <input id="dt" type="date" style="display:none"></div>
+  <div class="row"><button id="add">+ إضافة / تجديد</button></div>
+</div>
+<h2>العملاء <span id="cnt"></span></h2>
+<div id="list" class="cust"></div>
+<p class="note">يطبَّق التغيير على التلفزيونات خلال دقائق (يحدّث GitHub الملف مع تأخير قصير). الإيميلات تُحفظ في ذاكرة هذا الهاتف فقط، وفي الملف العام تظهر بصمات مشفرة بدون أسماء.</p>
+</div>
+<div id="msg"></div>
+<script>
+const OWNER="basemmbgai-beep",REPO="mbg-tv-releases",PATH="licenses.json",API="https://api.github.com/repos/"+OWNER+"/"+REPO+"/contents/"+PATH;
+const $=s=>document.querySelector(s);let sha=null,data={v:2,salt:"mbgtv",licenses:[]},mirror={};
+const LS={g:k=>{try{return localStorage.getItem(k)}catch(e){return null}},s:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},d:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+function msg(t){const m=$("#msg");m.textContent=t;m.style.display="block";clearTimeout(msg.t);msg.t=setTimeout(()=>m.style.display="none",3200)}
+async function sha256(t){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("mbgtv|"+t.trim().toLowerCase()));return [...new Uint8Array(b)].map(v=>v.toString(16).padStart(2,"0")).join("")}
+const tok=()=>LS.g("mbgadmtok")||"";
+const hdr=()=>({Authorization:"Bearer "+tok(),Accept:"application/vnd.github+json"});
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const today=()=>iso(new Date());
+function addMonths(base,m){const d=new Date(base+"T12:00:00");const day=d.getDate();d.setMonth(d.getMonth()+m);if(d.getDate()<day)d.setDate(0);return iso(d)}
+function daysLeft(exp){return Math.round((new Date(exp+"T12:00:00")-new Date(today()+"T12:00:00"))/864e5)}
+async function load(){
+  const r=await fetch(API+"?t="+Date.now(),{headers:hdr(),cache:"no-store"});
+  if(r.status===401||r.status===403){msg("المفتاح غير صالح أو بلا صلاحية");return false}
+  if(!r.ok){msg("تعذّر التحميل ("+r.status+")");return false}
+  const j=await r.json();sha=j.sha;
+  let c={};try{c=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))))}catch(e){}
+  if(c.licenses)data={v:2,salt:"mbgtv",licenses:c.licenses};
+  else data={v:2,salt:"mbgtv",licenses:(c.emails||[]).map(h=>({h}))};   // old format: permanent
+  try{mirror=JSON.parse(LS.g("mbgmirror")||"{}")}catch(e){mirror={}}
+  return true;
+}
+async function save(){
+  const body={message:"Update licenses",content:btoa(unescape(encodeURIComponent(JSON.stringify(data,null,1)+"\n"))),sha};
+  const r=await fetch(API,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify(body)});
+  if(r.status===409||r.status===422){await load();msg("تغيّر الملف من مكان آخر، أعدت التحميل. أعد المحاولة");render();return false}
+  if(!r.ok){msg("فشل الحفظ ("+r.status+")");return false}
+  const j=await r.json();sha=j.content.sha;LS.s("mbgmirror",JSON.stringify(mirror));return true;
+}
+function render(){
+  const L=data.licenses.slice().sort((a,b)=>(a.exp||"9999").localeCompare(b.exp||"9999"));
+  $("#cnt").textContent="("+L.length+")";
+  $("#list").innerHTML=L.length?"":'<div class="note">لا يوجد عملاء. بدون إضافة يبقى البرنامج تجريبياً.</div>';
+  L.forEach(x=>{
+    const em=mirror[x.h]||("عميل غير معروف ("+x.h.slice(0,8)+")");
+    let tag='<span class="tag perm">دائم</span>';
+    if(x.exp){const d=daysLeft(x.exp);tag=d<0?'<span class="tag exp">منتهي منذ '+(-d)+' يوم</span>':d<=14?'<span class="tag soon">ينتهي بعد '+d+' يوم</span>':'<span class="tag ok">فعّال · '+x.exp+'</span>'}
+    const c=document.createElement("div");c.className="card";
+    c.innerHTML='<div class="top"><span class="em">'+em.replace(/[<&>]/g,"")+'</span>'+tag+'</div><div class="btns" style="margin-top:8px"><button class="s" data-r="1">+شهر</button><button class="s" data-r="6">+6 أشهر</button><button class="s" data-r="12">+سنة</button><button class="d" data-del="1">حذف</button></div>';
+    c.dataset.h=x.h;$("#list").appendChild(c);
+  });
+}
+$("#list").addEventListener("click",async e=>{
+  const c=e.target.closest(".card");if(!c)return;const h=c.dataset.h,x=data.licenses.find(v=>v.h===h);if(!x)return;
+  if(e.target.dataset.del){if(!confirm("حذف هذا العميل؟ يعود برنامجه تجريبياً."))return;data.licenses=data.licenses.filter(v=>v.h!==h);delete mirror[h];if(await save()){msg("تم الحذف");render()}return}
+  if(e.target.dataset.r){const base=(x.exp&&x.exp>today())?x.exp:today();x.exp=addMonths(base,+e.target.dataset.r);if(await save()){msg("تم التجديد حتى "+x.exp);render()}}
+});
+$("#dur").onchange=()=>{$("#dt").style.display=$("#dur").value==="d"?"block":"none"};
+$("#add").onclick=async()=>{
+  const em=$("#em").value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(em)){msg("اكتب إيميلاً صحيحاً");return}
+  const h=await sha256(em),m=$("#dur").value;let exp;
+  if(m==="0")exp=undefined;else if(m==="d"){exp=$("#dt").value;if(!exp){msg("اختر التاريخ");return}}
+  else{const ex=data.licenses.find(v=>v.h===h);const base=(ex&&ex.exp&&ex.exp>today())?ex.exp:today();exp=addMonths(base,+m)}
+  const ex=data.licenses.find(v=>v.h===h);const rec={h};if(exp)rec.exp=exp;
+  if(ex){ex.exp=exp;if(!exp)delete ex.exp}else data.licenses.push(rec);
+  mirror[h]=em;if(await save()){$("#em").value="";msg("تم: "+em+(exp?" حتى "+exp:" (دائم)"));render()}
+};
+async function start(){if(!tok())return;$("#tokBox").style.display="none";if(await load()){$("#app").style.display="block";render()}else $("#tokBox").style.display="block"}
+$("#saveTok").onclick=()=>{const v=$("#tok").value.trim();if(!v){msg("الصق المفتاح");return}LS.s("mbgadmtok",v);$("#tok").value="";start()};
+$("#forget").onclick=()=>{LS.d("mbgadmtok");location.reload()};
+start();
+</script></body></html>
