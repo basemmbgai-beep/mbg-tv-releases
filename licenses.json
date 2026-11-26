@@ -1,5 +1,10 @@
 {
- "v": 1,
+ "v": 2,
  "salt": "mbgtv",
- "emails": []
+ "licenses": [
+  {
+   "h": "8ab38ae4aeaa9ef15691065d797d3b8ecd37874628970c81310c807c8a7f8fec",
+   "exp": "2027-11-27"
+  }
+ ]
 }
