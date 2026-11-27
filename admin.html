@@ -38,6 +38,12 @@ button.d{background:#4a1d28;color:#ffb4bd;width:auto;padding:6px 10px;font-size:
 </div>
 <h2>العملاء <span id="cnt"></span></h2>
 <div id="list" class="cust"></div>
+<h2>🔐 كلمة سر لوحة Admin في التلفزيون</h2>
+<div class="card">
+  <div class="note">اضغط اللوغو 10 مرات في التلفزيون ← حساب Admin. اكتب هنا كلمة سر جديدة (10 أحرف على الأقل) ثم احفظ؛ تنتقل للتلفزيون خلال دقائق.</div>
+  <input id="tvPw" type="password" dir="ltr" autocomplete="new-password" placeholder="كلمة السر الجديدة" style="margin-top:8px">
+  <div class="row"><button id="tvPwSave">حفظ كلمة السر</button></div>
+</div>
 <h2>🛒 بيانات الشراء والتواصل</h2>
 <div class="card">
   <div class="note">رابط الدفع (PayPal أو أي رابط). يتحول تلقائياً إلى QR يظهر على التلفزيون</div>
@@ -1368,22 +1374,29 @@ $("#add").onclick=async()=>{
   if(ex){ex.exp=exp;if(!exp)delete ex.exp}else data.licenses.push(rec);
   mirror[h]=em;if(await save()){$("#em").value="";msg("تم: "+em+(exp?" حتى "+exp:" (دائم)"));render()}
 };
-const CAPI="https://api.github.com/repos/"+OWNER+"/"+REPO+"/contents/config.json";let cSha=null;
+const CAPI="https://api.github.com/repos/"+OWNER+"/"+REPO+"/contents/config.json";let cSha=null,cAuth=null;
 function cQr(){const v=$("#cPay").value.trim(),b=$("#cQr");if(v){b.innerHTML=MBGQR.svg(v);b.style.display="block"}else{b.style.display="none"}}
 $("#cPay").addEventListener("input",cQr);
 async function loadCfg(){
   let c={payUrl:"",phone:"",email:"mbg.tv.android@gmail.com"};
-  try{const r=await fetch(CAPI+"?t="+Date.now(),{headers:hdr(),cache:"no-store"});if(r.ok){const j=await r.json();cSha=j.sha;c=Object.assign(c,JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,""))))))}}catch(e){}
+  try{const r=await fetch(CAPI+"?t="+Date.now(),{headers:hdr(),cache:"no-store"});if(r.ok){const j=await r.json();cSha=j.sha;c=Object.assign(c,JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,""))))));cAuth=c.adminAuth||null}}catch(e){}
   $("#cPay").value=c.payUrl||"";$("#cMail").value=c.email||"";$("#cPhone").value=c.phone||"";cQr();
 }
 $("#cSave").onclick=async()=>{
   const pay=$("#cPay").value.trim();if(pay&&!/^https?:\/\//i.test(pay)){msg("الرابط يجب أن يبدأ بـ https://");return}
-  const o={payUrl:pay,email:$("#cMail").value.trim(),phone:$("#cPhone").value.trim()};
+  const o={payUrl:pay,email:$("#cMail").value.trim(),phone:$("#cPhone").value.trim()};if(cAuth)o.adminAuth=cAuth;
   const body={message:"Update config",content:btoa(unescape(encodeURIComponent(JSON.stringify(o,null,1)+"\n")))};if(cSha)body.sha=cSha;
   const r=await fetch(CAPI,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify(body)});
   if(r.status===409||r.status===422){await loadCfg();msg("تغيّر الملف، أعدت التحميل. أعد المحاولة");return}
   if(!r.ok){msg("فشل الحفظ ("+r.status+")");return}
   cSha=(await r.json()).content.sha;msg("تم حفظ بيانات الشراء");
+};
+$("#tvPwSave").onclick=async()=>{
+  const pw=$("#tvPw").value;if(pw.length<10){msg("كلمة السر 10 أحرف على الأقل");return}
+  const salt=crypto.getRandomValues(new Uint8Array(16)),sh=[...salt].map(v=>v.toString(16).padStart(2,"0")).join("");
+  const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveBits"]);
+  const hh=[...new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt:salt,iterations:150000},k,256))].map(v=>v.toString(16).padStart(2,"0")).join("");
+  await loadCfg();cAuth={u:"Admin",salt:sh,iter:150000,hash:hh};$("#cSave").click();$("#tvPw").value=""
 };
 async function start(){if(!tok()){$("#tokBox").style.display="block";return}$("#tokBox").style.display="none";if(await load()){$("#app").style.display="block";render();loadCfg()}else $("#tokBox").style.display="block"}
 $("#saveTok").onclick=()=>{const v=$("#tok").value.trim();if(!v){msg("الصق المفتاح");return}LS.s("mbgadmtok",v);$("#tok").value="";start()};
