@@ -38,6 +38,16 @@ button.d{background:#4a1d28;color:#ffb4bd;width:auto;padding:6px 10px;font-size:
 </div>
 <h2>العملاء <span id="cnt"></span></h2>
 <div id="list" class="cust"></div>
+<h2>🕌 المساجد</h2>
+<div class="card">
+  <div class="note">أضف مسجداً وعنوانه واربطه بإيميل مستخدم أو أكثر؛ يظهر مسجده تلقائياً في التلفزيون وتُحسب مواقيت مدينته.</div>
+  <input id="mqN" placeholder="اسم المسجد" style="margin-top:6px">
+  <input id="mqC" placeholder="المدينة (مثال: Almere)" style="margin-top:8px">
+  <input id="mqA" placeholder="العنوان (شارع ورقم) – اختياري" style="margin-top:8px">
+  <input id="mqE" dir="ltr" placeholder="إيميلات المستخدمين مفصولة بفاصلة" style="margin-top:8px">
+  <div class="row"><button id="mqAdd">+ إضافة مسجد</button></div>
+  <div id="mqList" class="cust" style="margin-top:10px"></div>
+</div>
 <h2>🔐 كلمة سر لوحة Admin في التلفزيون</h2>
 <div class="card">
   <div class="note">اضغط اللوغو 10 مرات في التلفزيون ← حساب Admin. اكتب هنا كلمة سر جديدة (10 أحرف على الأقل) ثم احفظ؛ تنتقل للتلفزيون خلال دقائق.</div>
@@ -1399,7 +1409,24 @@ $("#tvPwSave").onclick=async()=>{
   const hh=[...new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt:salt,iterations:150000},k,256))].map(v=>v.toString(16).padStart(2,"0")).join("");
   await loadCfg();cAuth={u:"Admin",salt:sh,iter:150000,hash:hh};$("#cSave").click();$("#tvPw").value=""
 };
-async function start(){if(!tok()){$("#tokBox").style.display="block";return}$("#tokBox").style.display="none";if(await load()){$("#app").style.display="block";render();loadCfg()}else $("#tokBox").style.display="block"}
+
+const MAPI="https://api.github.com/repos/"+OWNER+"/"+REPO+"/contents/mosques.json";let mSha=null,mData={v:1,mosques:[]};
+async function loadMq(){try{const r=await fetch(MAPI+"?t="+Date.now(),{headers:hdr(),cache:"no-store"});if(r.ok){const j=await r.json();mSha=j.sha;try{mData=JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,"")))))}catch(e){}}if(!mData.mosques)mData.mosques=[]}catch(e){}renderMq()}
+function renderMq(){$("#mqList").innerHTML=mData.mosques.length?mData.mosques.map((m,i)=>'<div class="card" style="margin:0"><div class="top"><b>'+m.name.replace(/</g,"&lt;")+'</b><button class="d" data-mqd="'+i+'">حذف</button></div><div class="note">'+(m.city||"")+(m.addr?" · "+m.addr:"")+' · '+(m.emails||[]).length+' مستخدم</div></div>').join(""):'<div class="note">لا توجد مساجد بعد.</div>'}
+async function mqSave(){const body={message:"Update mosques",content:btoa(unescape(encodeURIComponent(JSON.stringify(mData,null,1)+"\n")))};if(mSha)body.sha=mSha;
+  const r=await fetch(MAPI,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify(body)});
+  if(r.status===409||r.status===422){await loadMq();msg("تغيّر الملف، أعدت التحميل. أعد المحاولة");return false}
+  if(!r.ok){msg("فشل الحفظ ("+r.status+")");return false}mSha=(await r.json()).content.sha;return true}
+async function geo(q){try{const r=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&q="+encodeURIComponent(q));const g=await r.json();if(g.length)return{lat:+g[0].lat,lon:+g[0].lon,cc:((g[0].address||{}).country_code||"")}}catch(e){}
+  try{const r=await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&name="+encodeURIComponent(q.split(",")[0]));const g=await r.json();if(g.results&&g.results.length){const x=g.results[0];return{lat:x.latitude,lon:x.longitude,cc:(x.country_code||"").toLowerCase()}}}catch(e){}return null}
+$("#mqAdd").onclick=async()=>{
+  const n=$("#mqN").value.trim(),c=$("#mqC").value.trim(),a=$("#mqA").value.trim();if(!n||!c){msg("اكتب اسم المسجد والمدينة");return}
+  msg("جارٍ تحديد الموقع...");const g=await geo((a?a+", ":"")+c)||await geo(c);if(!g){msg("تعذّر تحديد الموقع، تحقق من المدينة");return}
+  const em=$("#mqE").value.split(/[,\s;]+/).map(x=>x.trim().toLowerCase()).filter(x=>/^\S+@\S+\.\S+$/.test(x));const hs=[];for(const e of em)hs.push(await sha256(e));
+  const ex=mData.mosques.find(m=>m.name===n&&m.city===c);if(ex){ex.addr=a;ex.lat=g.lat;ex.lon=g.lon;ex.cc=g.cc;ex.emails=Array.from(new Set((ex.emails||[]).concat(hs)))}else mData.mosques.push({name:n,city:c,addr:a,lat:g.lat,lon:g.lon,cc:g.cc,emails:hs});
+  if(await mqSave()){["mqN","mqC","mqA","mqE"].forEach(i=>$("#"+i).value="");renderMq();msg("تمت إضافة المسجد")}};
+$("#mqList").addEventListener("click",async e=>{const b=e.target.closest("[data-mqd]");if(!b)return;if(!confirm("حذف هذا المسجد؟"))return;mData.mosques.splice(+b.dataset.mqd,1);if(await mqSave()){renderMq();msg("تم الحذف")}});
+async function start(){if(!tok()){$("#tokBox").style.display="block";return}$("#tokBox").style.display="none";if(await load()){$("#app").style.display="block";render();loadCfg();loadMq()}else $("#tokBox").style.display="block"}
 $("#saveTok").onclick=()=>{const v=$("#tok").value.trim();if(!v){msg("الصق المفتاح");return}LS.s("mbgadmtok",v);$("#tok").value="";start()};
 $("#forget").onclick=()=>{LS.d("mbgadmtok");location.reload()};
 const AUTH={u:"mbg.tv.android@gmail.com",salt:"5fdb9e8a2aca18e6a0f5f3bea655caa0",it:200000,h:"801e745a414b64caef5befffbb3d00784c552c7288527446a43b3355a6e04e95"};
