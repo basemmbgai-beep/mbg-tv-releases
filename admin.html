@@ -51,6 +51,7 @@ button.d{background:#4a1d28;color:#ffb4bd;width:auto;padding:6px 10px;font-size:
   <div id="cQr" style="width:170px;height:170px;margin:10px auto 0;border-radius:10px;overflow:hidden;background:#fff;display:none"></div>
   <div class="note" style="margin-top:10px">الإيميل للتواصل</div><input id="cMail" type="email" dir="ltr" placeholder="mbg.tv.android@gmail.com">
   <div class="note" style="margin-top:10px">رقم الهاتف</div><input id="cPhone" type="tel" dir="ltr" placeholder="+31 6 ...">
+  <div class="note" style="margin-top:10px">رقم التواصل مع الإدارة (يظهر للمستخدم عند إنشاء حساب)</div><input id="cAdm" type="tel" dir="ltr" placeholder="0031640575184">
   <div class="row"><button id="cSave">حفظ بيانات الشراء</button></div>
 </div>
 <p class="note">يطبَّق التغيير على التلفزيونات خلال دقائق (يحدّث GitHub الملف مع تأخير قصير). الإيميلات تُحفظ في ذاكرة هذا الهاتف فقط، وفي الملف العام تظهر بصمات مشفرة بدون أسماء.</p>
@@ -1380,11 +1381,11 @@ $("#cPay").addEventListener("input",cQr);
 async function loadCfg(){
   let c={payUrl:"",phone:"",email:"mbg.tv.android@gmail.com"};
   try{const r=await fetch(CAPI+"?t="+Date.now(),{headers:hdr(),cache:"no-store"});if(r.ok){const j=await r.json();cSha=j.sha;c=Object.assign(c,JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,""))))));cAuth=c.adminAuth||null}}catch(e){}
-  $("#cPay").value=c.payUrl||"";$("#cMail").value=c.email||"";$("#cPhone").value=c.phone||"";cQr();
+  $("#cPay").value=c.payUrl||"";$("#cMail").value=c.email||"";$("#cPhone").value=c.phone||"";$("#cAdm").value=c.adminPhone||"";cQr();
 }
 $("#cSave").onclick=async()=>{
   const pay=$("#cPay").value.trim();if(pay&&!/^https?:\/\//i.test(pay)){msg("الرابط يجب أن يبدأ بـ https://");return}
-  const o={payUrl:pay,email:$("#cMail").value.trim(),phone:$("#cPhone").value.trim()};if(cAuth)o.adminAuth=cAuth;
+  const o={payUrl:pay,email:$("#cMail").value.trim(),phone:$("#cPhone").value.trim(),adminPhone:$("#cAdm").value.trim()};if(cAuth)o.adminAuth=cAuth;
   const body={message:"Update config",content:btoa(unescape(encodeURIComponent(JSON.stringify(o,null,1)+"\n")))};if(cSha)body.sha=cSha;
   const r=await fetch(CAPI,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify(body)});
   if(r.status===409||r.status===422){await loadCfg();msg("تغيّر الملف، أعدت التحميل. أعد المحاولة");return}
