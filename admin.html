@@ -38,6 +38,18 @@ button.d{background:#4a1d28;color:#ffb4bd;width:auto;padding:6px 10px;font-size:
 </div>
 <h2>العملاء <span id="cnt"></span></h2>
 <div id="list" class="cust"></div>
+<h2>📦 آخر نسخة من البرنامج</h2>
+<div class="card" id="vCard">
+  <div id="vInfo" class="note">جارٍ التحميل…</div>
+  <div class="row"><button id="vDl">⬇ تحميل APK مباشر</button><button id="vCp">📋 نسخ الرابط</button><button id="vRf">تحديث</button></div>
+</div>
+<h2>👥 المستخدمون <span id="uCnt"></span></h2>
+<div class="card">
+  <div class="note">كل من يشغّل البرنامج يُسجَّل هنا بإيميله (التجريبي والمشترك). يتطلب رابط قاعدة البيانات في «بيانات الشراء» أدناه.</div>
+  <input id="uSec" type="password" dir="ltr" placeholder="مفتاح قاعدة البيانات (Database secret) — يُحفظ على هذا الجهاز فقط">
+  <div class="row"><button id="uLoad">تحديث القائمة</button></div>
+  <div id="uList" style="margin-top:8px"></div>
+</div>
 <h2>🕌 المساجد</h2>
 <div class="card">
   <div class="note">أضف مسجداً وعنوانه واربطه بإيميل مستخدم أو أكثر؛ يظهر مسجده تلقائياً في التلفزيون وتُحسب مواقيت مدينته.</div>
@@ -62,6 +74,7 @@ button.d{background:#4a1d28;color:#ffb4bd;width:auto;padding:6px 10px;font-size:
   <div class="note" style="margin-top:10px">الإيميل للتواصل</div><input id="cMail" type="email" dir="ltr" placeholder="mbg.tv.android@gmail.com">
   <div class="note" style="margin-top:10px">رقم الهاتف</div><input id="cPhone" type="tel" dir="ltr" placeholder="+31 6 ...">
   <div class="note" style="margin-top:10px">رقم التواصل مع الإدارة (يظهر للمستخدم عند إنشاء حساب)</div><input id="cAdm" type="tel" dir="ltr" placeholder="0031640575184">
+  <div class="note" style="margin-top:10px">رابط قاعدة بيانات المستخدمين (Firebase Realtime Database)</div><input id="cReg" type="url" dir="ltr" placeholder="https://xxxx-default-rtdb.firebaseio.com/">
   <div class="row"><button id="cSave">حفظ بيانات الشراء</button></div>
 </div>
 <p class="note">يطبَّق التغيير على التلفزيونات خلال دقائق (يحدّث GitHub الملف مع تأخير قصير). الإيميلات تُحفظ في ذاكرة هذا الهاتف فقط، وفي الملف العام تظهر بصمات مشفرة بدون أسماء.</p>
@@ -1391,11 +1404,11 @@ $("#cPay").addEventListener("input",cQr);
 async function loadCfg(){
   let c={payUrl:"",phone:"",email:"mbg.tv.android@gmail.com"};
   try{const r=await fetch(CAPI+"?t="+Date.now(),{headers:hdr(),cache:"no-store"});if(r.ok){const j=await r.json();cSha=j.sha;c=Object.assign(c,JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g,""))))));cAuth=c.adminAuth||null}}catch(e){}
-  $("#cPay").value=c.payUrl||"";$("#cMail").value=c.email||"";$("#cPhone").value=c.phone||"";$("#cAdm").value=c.adminPhone||"";cQr();
+  $("#cPay").value=c.payUrl||"";$("#cMail").value=c.email||"";$("#cPhone").value=c.phone||"";$("#cAdm").value=c.adminPhone||"";$("#cReg").value=c.regUrl||"";cQr();
 }
 $("#cSave").onclick=async()=>{
   const pay=$("#cPay").value.trim();if(pay&&!/^https?:\/\//i.test(pay)){msg("الرابط يجب أن يبدأ بـ https://");return}
-  const o={payUrl:pay,email:$("#cMail").value.trim(),phone:$("#cPhone").value.trim(),adminPhone:$("#cAdm").value.trim()};if(cAuth)o.adminAuth=cAuth;
+  const o={payUrl:pay,email:$("#cMail").value.trim(),phone:$("#cPhone").value.trim(),adminPhone:$("#cAdm").value.trim(),regUrl:$("#cReg").value.trim()};if(cAuth)o.adminAuth=cAuth;
   const body={message:"Update config",content:btoa(unescape(encodeURIComponent(JSON.stringify(o,null,1)+"\n")))};if(cSha)body.sha=cSha;
   const r=await fetch(CAPI,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify(body)});
   if(r.status===409||r.status===422){await loadCfg();msg("تغيّر الملف، أعدت التحميل. أعد المحاولة");return}
@@ -1426,7 +1439,37 @@ $("#mqAdd").onclick=async()=>{
   const ex=mData.mosques.find(m=>m.name===n&&m.city===c);if(ex){ex.addr=a;ex.lat=g.lat;ex.lon=g.lon;ex.cc=g.cc;ex.emails=Array.from(new Set((ex.emails||[]).concat(hs)))}else mData.mosques.push({name:n,city:c,addr:a,lat:g.lat,lon:g.lon,cc:g.cc,emails:hs});
   if(await mqSave()){["mqN","mqC","mqA","mqE"].forEach(i=>$("#"+i).value="");renderMq();msg("تمت إضافة المسجد")}};
 $("#mqList").addEventListener("click",async e=>{const b=e.target.closest("[data-mqd]");if(!b)return;if(!confirm("حذف هذا المسجد؟"))return;mData.mosques.splice(+b.dataset.mqd,1);if(await mqSave()){renderMq();msg("تم الحذف")}});
-async function start(){if(!tok()){$("#tokBox").style.display="block";return}$("#tokBox").style.display="none";if(await load()){$("#app").style.display="block";render();loadCfg();loadMq()}else $("#tokBox").style.display="block"}
+const APKURL="https://github.com/basemmbgai-beep/mbg-tv-releases/raw/main/MBG-TV.apk";
+async function loadVer(){
+  const R="https://api.github.com/repos/basemmbgai-beep/mbg-tv-releases/";let v={},size=0,date="";
+  try{const r=await fetch("https://raw.githubusercontent.com/basemmbgai-beep/mbg-tv-releases/main/version.json?t="+Date.now(),{cache:"no-store"});if(r.ok)v=await r.json()}catch(e){}
+  size=+v.size||0;date=v.date||"";
+  if(!size||!date){try{const r=await fetch(R+"contents/MBG-TV.apk?t="+Date.now(),{headers:hdr(),cache:"no-store"});if(r.ok)size=size||(await r.json()).size}catch(e){}
+    try{const r=await fetch(R+"commits?path=MBG-TV.apk&per_page=1&t="+Date.now(),{headers:hdr(),cache:"no-store"});if(r.ok){const j=await r.json();if(j[0])date=date||j[0].commit.committer.date}}catch(e){}}
+  const d=date?new Date(date).toLocaleString("ar",{dateStyle:"long",timeStyle:"short"}):"-";
+  $("#vInfo").innerHTML='الإصدار: <b dir="ltr">'+esc2(v.version||"?")+'</b> · الاسم: <b dir="ltr">MBG-TV-'+esc2(v.version||"")+'.apk</b><br>الحجم: <b>'+(size?(size/1048576).toFixed(2)+" MB":"-")+'</b><br>آخر تحديث: <b>'+d+'</b><br><span dir="ltr" style="word-break:break-all;opacity:.8">'+APKURL+'</span>';
+}
+$("#vDl").onclick=()=>{if(window.MBGAdmin&&MBGAdmin.openUrl)MBGAdmin.openUrl(APKURL);else window.open(APKURL,"_blank")};
+$("#vCp").onclick=async()=>{try{if(window.MBGAdmin&&MBGAdmin.copy)MBGAdmin.copy(APKURL);else await navigator.clipboard.writeText(APKURL);msg("تم نسخ الرابط")}catch(e){msg(APKURL)}};
+$("#vRf").onclick=loadVer;
+const esc2=t=>String(t==null?"":t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function loadUsers(){
+  const base=($("#cReg").value||"").trim();
+  if(!base){$("#uList").textContent="أدخل رابط قاعدة البيانات في «بيانات الشراء» واحفظه أولاً";return}
+  const sec=$("#uSec").value.trim()||localStorage.getItem("mbgdbs")||"";
+  if($("#uSec").value.trim())localStorage.setItem("mbgdbs",sec);
+  if(!sec){$("#uList").textContent="أدخل مفتاح قاعدة البيانات";return}
+  $("#uList").textContent="جارٍ التحميل…";
+  try{const r=await fetch(base.replace(/\/?$/,"/")+"users.json?auth="+encodeURIComponent(sec),{cache:"no-store"});
+    if(!r.ok){$("#uList").textContent="فشل ("+r.status+") — تحقق من الرابط والمفتاح";return}
+    const j=await r.json()||{};const a=Object.values(j).sort((x,y)=>(y.l||0)-(x.l||0));
+    $("#uCnt").textContent="("+a.length+")";
+    const d=t=>t?new Date(t).toLocaleString("ar"):"-";
+    $("#uList").innerHTML=a.length?a.map(u=>'<div class="card" style="margin:6px 0"><b dir="ltr">'+esc2(u.e)+'</b><div class="note">'+(u.p==="paid"?"✅ مشترك":u.p==="trial"?"⏳ تجريبي":"— منتهي/غير مفعّل")+' · إصدار '+esc2(u.v)+' · أجهزة: '+Object.keys(u.dv||{}).length+'<br>أول دخول: '+d(u.f)+'<br>آخر ظهور: '+d(u.l)+'</div></div>').join(""):"لا يوجد مستخدمون بعد";
+  }catch(e){$("#uList").textContent="تعذّر الاتصال"}
+}
+$("#uLoad").onclick=loadUsers;
+async function start(){if(!tok()){$("#tokBox").style.display="block";return}$("#tokBox").style.display="none";if(await load()){$("#app").style.display="block";render();loadCfg();loadMq();loadVer()}else $("#tokBox").style.display="block"}
 $("#saveTok").onclick=()=>{const v=$("#tok").value.trim();if(!v){msg("الصق المفتاح");return}LS.s("mbgadmtok",v);$("#tok").value="";start()};
 $("#forget").onclick=()=>{LS.d("mbgadmtok");location.reload()};
 const AUTH={u:"mbg.tv.android@gmail.com",salt:"2ff7e8a86639dd7da50be6835d986137",it:200000,h:"dc662abd46cd8d75dc0302c291d34dba338b00aa53bf56791d4cf67c764de20f"};
