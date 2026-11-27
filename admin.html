@@ -1401,7 +1401,7 @@ $("#tvPwSave").onclick=async()=>{
 async function start(){if(!tok()){$("#tokBox").style.display="block";return}$("#tokBox").style.display="none";if(await load()){$("#app").style.display="block";render();loadCfg()}else $("#tokBox").style.display="block"}
 $("#saveTok").onclick=()=>{const v=$("#tok").value.trim();if(!v){msg("الصق المفتاح");return}LS.s("mbgadmtok",v);$("#tok").value="";start()};
 $("#forget").onclick=()=>{LS.d("mbgadmtok");location.reload()};
-const AUTH={u:"mbg.tv.android@gmail.com",salt:"bc23386c47636a45c88c991068f44b3c",it:200000,h:"4c89c6965903b2c167c7915999c991953855f26f8b3701ff969527ce65228cd6"};
+const AUTH={u:"mbg.tv.android@gmail.com",salt:"5fdb9e8a2aca18e6a0f5f3bea655caa0",it:200000,h:"801e745a414b64caef5befffbb3d00784c552c7288527446a43b3355a6e04e95"};
 const hb=x=>new Uint8Array(x.match(/../g).map(v=>parseInt(v,16)));
 async function pbk(pw){const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveBits"]);return [...new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt:hb(AUTH.salt),iterations:AUTH.it},k,256))].map(v=>v.toString(16).padStart(2,"0")).join("")}
 function gate(){
